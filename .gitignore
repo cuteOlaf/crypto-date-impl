@@ -1,6 +1,6 @@
 node_modules
 .env
-
+scripts
 coverage
 coverage.json
 package-lock.json
