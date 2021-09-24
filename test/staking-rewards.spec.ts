@@ -25,7 +25,7 @@ describe("Staking Rewards Tests", async () => {
     });
     it("cannot start rewards if no reward tokens in contract", async () => {
         const stakingRewards: StakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, treasury);
-        await (expect(stakingRewards.startRewards(ethers.utils.parseEther("100"), DAY * 30)).to.be.revertedWith("Provided reward too high"));
+        await (expect(stakingRewards.startRewards(ethers.utils.parseEther("100"), DAY * 30)).to.be.revertedWith("INSUFFICIENT REWARDS"));
     });
     it("cannot start rewards if reward amount is 0 ", async () => {
         const stakingRewards: StakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, treasury);
@@ -38,7 +38,7 @@ describe("Staking Rewards Tests", async () => {
     it("cannot start rewards if no reward tokens in contract", async () => {
         const stakingRewards: StakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, treasury);
         const CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, treasury);
-        await (expect(stakingRewards.startRewards(ethers.utils.parseEther("100"), DAY * 30)).to.be.revertedWith("Provided reward too high"));
+        await (expect(stakingRewards.startRewards(ethers.utils.parseEther("100"), DAY * 30)).to.be.revertedWith("INSUFFICIENT REWARDS"));
     });
     it("cannot start rewards while farming in progress", async () => {
         let stakingRewards: StakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, treasury);
@@ -147,15 +147,29 @@ describe("Staking Rewards Tests", async () => {
         await stakingRewards.stake(ethers.utils.parseEther("1"));
         expect(await stakingRewards.totalSupply()).to.be.eq(ethers.utils.parseEther("1"));
     });
+    it("preserves stake", async () => {
+        let stakingRewards: StakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, treasury);
+        let CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, treasury);
+        await CDTContract.transfer(stakingRewards.address, ethers.utils.parseEther("100"));
+        //switch to user 1
+        stakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, user);
+        CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, user);
+        await CDTContract.approve(stakingRewards.address, ethers.utils.parseEther("10000000"));
+        await stakingRewards.stake(ethers.utils.parseEther("200"));
+        //switch to user 2
+        stakingRewards = StakingRewards__factory.connect(fixtureAddress.STAKING_REWARDS, user2);
+        CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, user2);
+        await CDTContract.approve(stakingRewards.address, ethers.utils.parseEther("10000000"));
+        await stakingRewards.stake(ethers.utils.parseEther("200"));
+        //start rewards
+        CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, treasury);
+        await stakingRewards.startRewards(ethers.utils.parseEther("100"), DAY * 30);
+        await advanceTime(DAY * 31);
+        expect(await stakingRewards.earned(user.address)).to.be.closeTo( ethers.utils.parseEther("50"), TOLERANCE_FOR_TESTS);
+        expect(await stakingRewards.earned(user2.address)).to.be.closeTo( ethers.utils.parseEther("50"), TOLERANCE_FOR_TESTS);
+        expect( await CDTContract.balanceOf(stakingRewards.address)).to.eq(ethers.utils.parseEther("500"));
+        //try to start new period
+        await (expect(stakingRewards.startRewards(ethers.utils.parseEther("500"), DAY * 30)).to.be.revertedWith("INSUFFICIENT REWARDS"));
 
-    async function print(stakingRewards: StakingRewards) {
-        console.log("rewardPerTokenStored " + (await stakingRewards.rewardPerTokenStored()).toString());
-        console.log("rewardRate " + (await stakingRewards.rewardRate()).toString());
-        console.log("periodFinish " + (await stakingRewards.periodFinish()).toString());
-        console.log("rewardsDuration " + (await stakingRewards.rewardsDuration()).toString());
-        const totalSupply = await stakingRewards.totalSupply();
-        console.log("totalSupply " + ethers.utils.formatEther(totalSupply));
-        let rewardD = await stakingRewards.getRewardForDuration();
-        console.log("reward for duration " + ethers.utils.formatEther(rewardD));
-    }
+    });
 });

@@ -102,17 +102,6 @@ contract StakingRewards is ReentrancyGuard {
         updateReward(msg.sender);
         uint256 reward = rewards[msg.sender];
         if (reward > 0) {
-            //handle case where rewardToken is the stakingToken by stopping
-            //rewards if the contract balance is less than the total amount staked
-            //user should always be able to get stake back even if rewards run out
-            if (rewardsToken == stakingToken) {
-                require(
-                    IERC20(rewardsToken).balanceOf(address(this)).sub(
-                        _totalSupply
-                    ) > reward,
-                    "INSUFFICIENT REWARDS"
-                );
-            }
             rewards[msg.sender] = 0;
             IERC20(rewardsToken).safeTransfer(msg.sender, reward);
         }
@@ -125,6 +114,12 @@ contract StakingRewards is ReentrancyGuard {
         require(reward > 0, "reward too small");
         require(newRewardDuration > 0, "reward duration too small");
         require(block.timestamp >= periodFinish, "rewards still in progress");
+        //handle case where rewardToken is the stakingToken by stopping
+        //rewards if the contract balance is less than the total amount staked
+        if (rewardsToken == stakingToken) {
+            require(IERC20(rewardsToken).balanceOf(address(this)).sub(_totalSupply) >= reward, "INSUFFICIENT REWARDS");
+        }
+
         updateReward(address(0));
         rewardsDuration = newRewardDuration;
         rewardRate = reward.div(rewardsDuration);
@@ -136,7 +131,7 @@ contract StakingRewards is ReentrancyGuard {
         uint256 balance = IERC20(rewardsToken).balanceOf(address(this));
         require(
             rewardRate <= balance.div(rewardsDuration),
-            "Provided reward too high"
+            "INSUFFICIENT REWARDS"
         );
 
         lastUpdateTime = block.timestamp;
