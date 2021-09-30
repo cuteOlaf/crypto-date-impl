@@ -35,7 +35,7 @@ export async function mintCryptoDate(signer: SignerWithAddress, cryptoDate:Crypt
     const month = randomIntFromInterval(1, 12);
     const day = randomIntFromInterval(1, 28);
     //todo make sure it isn't minted in legacy
-    const priceInETH: BigNumber = await cryptoDate.getPriceInETH(year, month, day);
+    const priceInETH: BigNumber = await cryptoDate.getPriceInETH(month, day);
     await cryptoDate.mintWithETH(signer.address, year, month, day, { value: priceInETH });
 
 }
