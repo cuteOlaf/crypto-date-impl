@@ -149,5 +149,12 @@ describe("NFT Minting and Price Tests", async () => {
         const uri = await cryptoDateContract.tokenURI(20011001);
         expect(uri).to.be.equal("https://api.cryptodate.io/date/20011001");
     });
+    it("can update price", async ()=> {
+        const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, operations);
+        await cryptoDateContract.updatePrice(ethers.utils.parseEther(".5"));
+        let priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(10, 1);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther(".5"));
+
+    });
 
 });
