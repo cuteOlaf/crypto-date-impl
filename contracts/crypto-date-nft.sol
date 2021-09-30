@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/utils/math/SafeMath.sol";
@@ -23,7 +24,7 @@ interface IExist {
     function exists(uint256 _tokenId) external returns (bool _exists);
 }
 
-contract CryptoDate is ERC721Enumerable, ReentrancyGuard {
+contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -60,6 +61,9 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard {
     address public immutable CRYPTO_DATE_LEGACY;
 
     /* VARIABLES FOR TOKENOMICS */
+
+    //price of NFT 
+    uint256 public basePrice = .1 ether;
 
     //percentage for split of ETH sales between UNISWAP pool and TREASURY
     uint256 public constant splitPercentage = 50;
@@ -99,7 +103,7 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard {
         uint256 day
     ) external payable nonReentrant {
         uint256 _tokenId = valiDate(year, month, day);
-        uint256 priceInEth = getPriceInETH(year, month, day);
+        uint256 priceInEth = getPriceInETH(month, day);
         require(msg.value >= priceInEth, "INSUFFICIENT ETH");
 
         // half the ETH is used to buy back CDT tokens from the pool
@@ -125,25 +129,24 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard {
         }
     }
 
+    function updatePrice(uint256 newPrice) external onlyOwner {
+        basePrice = newPrice;
+    }
+
     function getPriceInETH(
-        uint256 year,
         uint256 month,
         uint256 day
-    ) public pure returns (uint256 priceInEth) {
-        //leap days are 10 ether
+    ) public view returns (uint256 priceInEth) {
+        //leap days are 100x the base price
         if (day == 29) {
-            return 10 ether;
+            return basePrice.mul(100);
         }
-        //matching day/month are 1 ether
+        //matching day/month are 10x the base price
         if (day == month) {
-            return 1 ether;
+            return basePrice.mul(10);
         }
-        //420
-        if (year > 1971 && year < 2073 && month == 4 && day == 20) {
-            return .01 ether;
-        }
-        //everything else is .1
-        return .1 ether;
+        //everything else is the base price
+        return basePrice;
     }
 
     function migrationMint(uint256 _tokenId) external nonReentrant {
