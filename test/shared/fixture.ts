@@ -82,6 +82,7 @@ export async function deployFixture(cdtForNFTRewards:BigNumber = CDT_FOR_NFT_REW
         CDT.address,
         router02.address,
         WETH.address,
+        CDT_WETH_PAIR.address,
         treasury.address,
         legacyMapping.address);
     await cryptoDate.deployed();

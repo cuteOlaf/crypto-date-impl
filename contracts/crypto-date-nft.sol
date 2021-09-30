@@ -11,14 +11,19 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 // subset of Uniswap Router Interface
 interface IUniswapV2Router02 {
-    function swapExactETHForTokens(
-        uint256 amountOutMin,
-        address[] calldata path,
-        address to,
-        uint256 deadline
-    ) external payable returns (uint256[] memory amounts);
+    function quote(uint amountA, uint reserveA, uint reserveB) external pure returns (uint amountB);
 }
 
+// subset of Uniswap Pair Interface
+interface IUniswapV2Pair {
+    function getReserves() external view returns (uint112 reserve0, uint112 reserve1, uint32 blockTimestampLast);
+    function sync() external;
+}
+
+// subset of WETH Interface
+interface IWETH {
+    function deposit() external payable;
+}
 // used for call to legacy NFT contract
 interface IExist {
     function exists(uint256 _tokenId) external returns (bool _exists);
@@ -51,6 +56,12 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
     // WETH address
     address public immutable WETH;
 
+    // CDT_WETH pool
+    address public immutable CDT_WETH_POOL;
+
+    // token0 address for getting reserves
+    bool public immutable isWETHToken0;
+
     // UNISWAP ROUTER address
     address payable public immutable UNISWAP_ROUTER;
 
@@ -65,8 +76,11 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
     //price of NFT 
     uint256 public basePrice = .1 ether;
 
-    //percentage for split of ETH sales between UNISWAP pool and TREASURY
+    //percentage for split of ETH between pool and TREASURY
     uint256 public constant splitPercentage = 50;
+
+    //percentage of CDT to move to pool 
+    uint256 public constant lpPercentage = 90;
 
     //reward of CDT when purchased with ETH
     uint256 public constant rewardFactor = 100;
@@ -75,17 +89,18 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
         address _cdt,
         address payable _uniswapRouter,
         address _weth,
+        address _cdt_weth_pool,
         address _treasury,
         address _crypto_date_legacy
     ) ERC721("CryptoDate", "CD") {
         CDT = _cdt;
         UNISWAP_ROUTER = _uniswapRouter;
         WETH = _weth;
+        CDT_WETH_POOL = _cdt_weth_pool;
         TREASURY = _treasury;
         CRYPTO_DATE_LEGACY = _crypto_date_legacy;
+        isWETHToken0 = _weth < _cdt;
 
-        //approve uniswap router to spend CDT token
-        IERC20(_cdt).safeApprove(_uniswapRouter, uint256(2**256 - 1));
         //init rewards
         rewardRate = rewardPerNFTPerPeriod.div(rewardsDuration);
         lastUpdateTime = block.timestamp;
@@ -105,24 +120,32 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
         uint256 _tokenId = valiDate(year, month, day);
         uint256 priceInEth = getPriceInETH(month, day);
         require(msg.value >= priceInEth, "INSUFFICIENT ETH");
-
-        // half the ETH is used to buy back CDT tokens from the pool
+        // half the ETH is used to add liquidity to pool
         uint256 split = priceInEth.mul(splitPercentage).div(100);
-        address[] memory path = new address[](2);
-        path[0] = WETH;
-        path[1] = CDT;
-        IUniswapV2Router02(UNISWAP_ROUTER).swapExactETHForTokens{value: split}(
-            uint256(0),
-            path,
-            TREASURY,
-            block.timestamp + 1800
+        // determine ratio for adding liquidity
+        (uint reserveA, uint reserveB, ) = IUniswapV2Pair(CDT_WETH_POOL).getReserves();
+        uint256 amountCDTForPool = IUniswapV2Router02(UNISWAP_ROUTER).quote(
+            split,
+            isWETHToken0 ? reserveA : reserveB,
+            isWETHToken0 ? reserveB : reserveA
         );
-
+        //convert ETH to WETH
+        IWETH(WETH).deposit{value: split}();
+        //transfer weth to pool
+        IERC20(WETH).safeTransfer(CDT_WETH_POOL, split);
+        uint256 lpSplit = amountCDTForPool.mul(lpPercentage).div(100);
+        //transfer a percentage of CDT to pool to move price 
+        //if enough remaining in contract
+        if (IERC20(CDT).balanceOf(address(this)) >= lpSplit) {
+            IERC20(CDT).safeTransfer(CDT_WETH_POOL, lpSplit);
+        }
+        //call sync on pool
+        IUniswapV2Pair(CDT_WETH_POOL).sync();
         // the other half of ETH goes to TREASURY fund
         (bool sent, ) = TREASURY.call{value: split}("");
         require(sent, "Failed to send Ether");
         super._safeMint(_to, _tokenId);
-        //issue reward based reward factor
+        //issue reward based reward factor if enough remaining in contract
         uint256 rewardInCDT = priceInEth.mul(rewardFactor);
         if (IERC20(CDT).balanceOf(address(this)) >= rewardInCDT) {
             IERC20(CDT).safeTransfer(msg.sender, rewardInCDT);

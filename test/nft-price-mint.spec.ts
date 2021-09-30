@@ -4,11 +4,13 @@ import chai from "chai";
 import { BigNumber, Contract } from "ethers";
 import { CryptoDate__factory } from "../typechain/factories/CryptoDate__factory";
 import UniswapV2Router02 from '@uniswap/v2-periphery/build/UniswapV2Router02.json'
-import { CryptoDate } from "../typechain";
+import { CryptoDate, IUniswapV2Router01__factory } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ERC20__factory } from "../typechain/factories/ERC20__factory";
 import { deployFixture, FixtureAddresses } from "./shared/fixture";
 import { mintCryptoDate, sleep, TOLERANCE_FOR_TESTS } from "./shared/helpers";
+import { IWETH__factory } from "../typechain/factories/IWETH__factory";
+import { IUniswapV2Pair__factory } from "../typechain/factories/IUniswapV2Pair__factory";
 chai.use(solidity);
 const { expect } = chai;
 describe("NFT Minting and Price Tests", async () => {
@@ -93,20 +95,37 @@ describe("NFT Minting and Price Tests", async () => {
         expect(await ethers.provider.getBalance(user.address)).to.eq(ethBalance.sub(txCost).sub(priceInETH));
 
     });
-    it("minting in ETH distributes funds to treasury", async () => {
+    it("minting distributes funds to treasury", async () => {
         const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
-        const CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, user);
-        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1, 1);
+        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(2, 29);
         const ethBalanceOfTreasury = await ethers.provider.getBalance(treasury.address);
-        const cdtBalanceOfTreasury = await CDTContract.balanceOf(treasury.address);
-        await cryptoDateContract.mintWithETH(user.address, "2010", "1", "1", { value: priceInETH });
+        await cryptoDateContract.mintWithETH(user.address, "2008", "2", "29", { value: priceInETH });
         //treasury gets half the ETH
         expect(await ethers.provider.getBalance(treasury.address)).to.be.eq(ethBalanceOfTreasury.add(priceInETH.div("2")));
-        //treasury gets CDT from sale of other half of ETH to uniswap pool
-        expect(await CDTContract.balanceOf(treasury.address)).to.be.gt(cdtBalanceOfTreasury);
 
     });
-    it("minting in ETH distributes CDT rewards to buyer", async () => {
+    it("minting adds liquidity to pool without changing price", async () => {
+        const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
+        const CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, user);
+        const router = IUniswapV2Router01__factory.connect(fixtureAddress.ROUTER, operations);
+        const weth = IWETH__factory.connect(fixtureAddress.WETH_ADDRESS, operations);
+        const pair = IUniswapV2Pair__factory.connect(fixtureAddress.CDT_WETH_PAIR_ADDRESS, operations);
+        const amountsOut = await router.getAmountsOut(ethers.utils.parseEther("1"), [fixtureAddress.CDT_ADDRESS, fixtureAddress.WETH_ADDRESS]);
+        const reserves = await pair.getReserves();
+
+        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(2, 2);
+        await cryptoDateContract.mintWithETH(user.address, "2008", "2", "2", { value: priceInETH });
+        const amountsOut2 = await router.getAmountsOut(ethers.utils.parseEther("1"), [fixtureAddress.CDT_ADDRESS, fixtureAddress.WETH_ADDRESS]);
+        const reservesNew = await pair.getReserves();
+        //shifts price to make CDT worth more
+        expect(amountsOut2[1]).to.be.gt(amountsOut[1]);
+        //adds 90% of CDT to lp pool
+        expect(reservesNew.reserve0).to.be.eq(reserves.reserve0.add(ethers.utils.parseEther("900")));
+        //adds half of eth to lp pool
+        expect(reservesNew.reserve1).to.be.eq(reserves.reserve1.add(priceInETH.div(2)));
+
+    });
+    it("minting distributes CDT rewards to buyer", async () => {
         const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
         const CDTContract = ERC20__factory.connect(fixtureAddress.CDT_ADDRESS, user);
         //clear user balance of CDT to make test simpler
