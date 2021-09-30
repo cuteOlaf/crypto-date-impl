@@ -31,7 +31,7 @@ export async function depositToCDT_WETHLiquidityPool(signer: SignerWithAddress, 
     return balanceOfLPTokens;
 }
 export async function mintCryptoDate(signer: SignerWithAddress, cryptoDate:CryptoDate) {
-    const year = randomIntFromInterval(1900, 2099);
+    const year = randomIntFromInterval(1950, 2050);
     const month = randomIntFromInterval(1, 12);
     const day = randomIntFromInterval(1, 28);
     //todo make sure it isn't minted in legacy

@@ -55,9 +55,9 @@ describe("NFT Minting and Price Tests", async () => {
         const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
         const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1,1);
         //out of valid range
-        await expect( cryptoDateContract.mintWithETH(user.address, 1899, 3, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
+        await expect( cryptoDateContract.mintWithETH(user.address, 1949, 3, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
         //out of valid range
-        await expect( cryptoDateContract.mintWithETH(user.address, 2100, 3, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
+        await expect( cryptoDateContract.mintWithETH(user.address, 2051, 3, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
         //invalid dates
         await expect( cryptoDateContract.mintWithETH(user.address, 2000, 13, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
         await expect( cryptoDateContract.mintWithETH(user.address, 2000, 3, 100, { value:priceInETH })).to.be.revertedWith("invalid date");

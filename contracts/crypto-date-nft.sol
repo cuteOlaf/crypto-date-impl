@@ -161,7 +161,7 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
         uint256 month,
         uint256 day
     ) private returns (uint256 tokenizedDate) {
-        require(year > 1899 && year < 2100, "invalid date");
+        require(year > 1949 && year < 2050, "invalid date");
         require(month > 0 && month < 13, "invalid date");
         require(day > 0, "invalid date");
         if (month == 2) {
