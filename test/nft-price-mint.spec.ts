@@ -32,9 +32,6 @@ describe("NFT Minting and Price Tests", async () => {
         //all leap year days are worth 10 eth
         expect(priceInETH).to.be.eq(ethers.utils.parseEther("10"));
         priceInETH = await cryptoDateContract.getPriceInETH(2, 29);
-        expect(priceInETH).to.be.eq(ethers.utils.parseEther("10"));
-        priceInETH = await cryptoDateContract.getPriceInETH(2, 29);
-        expect(priceInETH).to.be.eq(ethers.utils.parseEther("10"));
         //matching month day
         priceInETH = await cryptoDateContract.getPriceInETH(3, 3);
         expect(priceInETH).to.be.eq(ethers.utils.parseEther("1"));
@@ -44,7 +41,9 @@ describe("NFT Minting and Price Tests", async () => {
         expect(priceInETH).to.be.eq(ethers.utils.parseEther("1"));
         priceInETH = await cryptoDateContract.getPriceInETH(11, 11);
         expect(priceInETH).to.be.eq(ethers.utils.parseEther("1"));
-        //dates before 2030 are worth .1 eth
+        //all else are worth .1 eth
+        priceInETH = await cryptoDateContract.getPriceInETH(1, 29);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther(".1"));
         priceInETH = await cryptoDateContract.getPriceInETH(10, 21);
         expect(priceInETH).to.be.eq(ethers.utils.parseEther(".1"));
         priceInETH = await cryptoDateContract.getPriceInETH(1, 2);
@@ -55,7 +54,7 @@ describe("NFT Minting and Price Tests", async () => {
     it("invalid dates fail", async () => {
         // mint by spending ETH
         const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
-        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1,1);
+        let priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1,1);
         //out of valid range
         await expect( cryptoDateContract.mintWithETH(user.address, 1949, 3, 23, { value:priceInETH })).to.be.revertedWith("invalid date");
         //out of valid range
@@ -66,6 +65,9 @@ describe("NFT Minting and Price Tests", async () => {
         await expect( cryptoDateContract.mintWithETH(user.address, 2000, 2, 31, { value:priceInETH })).to.be.revertedWith("invalid date");
         await expect( cryptoDateContract.mintWithETH(user.address, 2000, 0, 31, { value:priceInETH })).to.be.revertedWith("invalid date");
         await expect( cryptoDateContract.mintWithETH(user.address, 2000, 1, 0, { value:priceInETH })).to.be.revertedWith("invalid date");
+        //not a leap year
+        priceInETH = await cryptoDateContract.getPriceInETH(2, 29);
+        await expect( cryptoDateContract.mintWithETH(user.address, 2001, 2, 29, { value:priceInETH })).to.be.revertedWith("invalid date");
     });
     it("dates create correct token id", async () => {
         // mint by spending ETH
@@ -81,10 +83,28 @@ describe("NFT Minting and Price Tests", async () => {
         expect(await cryptoDateContract.ownerOf("20001102")).to.eq(user.address);
     });
 
-    it("minting dates works", async () => {
+    it("minting standard dates works", async () => {
+        // mint by spending ETH
+        const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
+        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1, 10);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther(".1"));
+
+        const ethBalance = await ethers.provider.getBalance(user.address);
+        const tx = await cryptoDateContract.mintWithETH(user.address, "2010", "1", "10", { value: priceInETH });
+        const receipt = await tx.wait();
+
+        const gasCost = ethers.utils.parseUnits("2", "gwei");
+        const txCost = gasCost.mul(receipt.gasUsed)
+        expect(await cryptoDateContract.ownerOf("20100110")).to.eq(user.address);
+        expect(await ethers.provider.getBalance(user.address)).to.eq(ethBalance.sub(txCost).sub(priceInETH));
+
+    });
+    it("minting limited edition dates works", async () => {
         // mint by spending ETH
         const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
         const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(1, 1);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther("1"));
+
         const ethBalance = await ethers.provider.getBalance(user.address);
         const tx = await cryptoDateContract.mintWithETH(user.address, "2010", "1", "1", { value: priceInETH });
         const receipt = await tx.wait();
@@ -92,6 +112,22 @@ describe("NFT Minting and Price Tests", async () => {
         const gasCost = ethers.utils.parseUnits("2", "gwei");
         const txCost = gasCost.mul(receipt.gasUsed)
         expect(await cryptoDateContract.ownerOf("20100101")).to.eq(user.address);
+        expect(await ethers.provider.getBalance(user.address)).to.eq(ethBalance.sub(txCost).sub(priceInETH));
+
+    });
+    it("minting premium dates works", async () => {
+        // mint by spending ETH
+        const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
+        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(2, 29);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther("10"));
+
+        const ethBalance = await ethers.provider.getBalance(user.address);
+        const tx = await cryptoDateContract.mintWithETH(user.address, "2008", "2", "29", { value: priceInETH });
+        const receipt = await tx.wait();
+
+        const gasCost = ethers.utils.parseUnits("2", "gwei");
+        const txCost = gasCost.mul(receipt.gasUsed)
+        expect(await cryptoDateContract.ownerOf("20080229")).to.eq(user.address);
         expect(await ethers.provider.getBalance(user.address)).to.eq(ethBalance.sub(txCost).sub(priceInETH));
 
     });

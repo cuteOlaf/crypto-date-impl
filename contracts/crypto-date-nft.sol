@@ -161,7 +161,7 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
         uint256 day
     ) public view returns (uint256 priceInEth) {
         //leap days are 100x the base price
-        if (day == 29) {
+        if (day == 29 && month == 2) {
             return basePrice.mul(100);
         }
         //matching day/month are 10x the base price
