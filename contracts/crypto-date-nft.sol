@@ -142,7 +142,7 @@ contract CryptoDate is ERC721Enumerable, ReentrancyGuard, Ownable {
         //call sync on pool
         IUniswapV2Pair(CDT_WETH_POOL).sync();
         // the other half of ETH goes to TREASURY fund
-        (bool sent, ) = TREASURY.call{value: split}("");
+        (bool sent, ) = TREASURY.call{ value: address(this).balance }("");
         require(sent, "Failed to send Ether");
         super._safeMint(_to, _tokenId);
         //issue reward based reward factor if enough remaining in contract

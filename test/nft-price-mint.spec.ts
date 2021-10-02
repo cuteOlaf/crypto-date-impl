@@ -3,12 +3,10 @@ import { solidity } from "ethereum-waffle";
 import chai from "chai";
 import { BigNumber, Contract } from "ethers";
 import { CryptoDate__factory } from "../typechain/factories/CryptoDate__factory";
-import UniswapV2Router02 from '@uniswap/v2-periphery/build/UniswapV2Router02.json'
 import { CryptoDate, IUniswapV2Router01__factory } from "../typechain";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { ERC20__factory } from "../typechain/factories/ERC20__factory";
 import { deployFixture, FixtureAddresses } from "./shared/fixture";
-import { mintCryptoDate, sleep, TOLERANCE_FOR_TESTS } from "./shared/helpers";
 import { IWETH__factory } from "../typechain/factories/IWETH__factory";
 import { IUniswapV2Pair__factory } from "../typechain/factories/IUniswapV2Pair__factory";
 chai.use(solidity);
@@ -138,6 +136,17 @@ describe("NFT Minting and Price Tests", async () => {
         await cryptoDateContract.mintWithETH(user.address, "2008", "2", "29", { value: priceInETH });
         //treasury gets half the ETH
         expect(await ethers.provider.getBalance(treasury.address)).to.be.eq(ethBalanceOfTreasury.add(priceInETH.div("2")));
+
+    });
+    it.only("minting distributes excess funds to treasury", async () => {
+        const cryptoDateContract: CryptoDate = CryptoDate__factory.connect(fixtureAddress.CRYPTO_DATE_NFT_ADDRESS, user);
+        const priceInETH: BigNumber = await cryptoDateContract.getPriceInETH(2, 1);
+        expect(priceInETH).to.be.eq(ethers.utils.parseEther(".1"));
+        const ethBalanceOfTreasury = await ethers.provider.getBalance(treasury.address);
+        //it cost .1 but they sent 1
+        await cryptoDateContract.mintWithETH(user.address, "2008", "2", "1", { value: ethers.utils.parseEther("1") });
+        //treasury gets .95 
+        expect(await ethers.provider.getBalance(treasury.address)).to.be.eq(ethBalanceOfTreasury.add( ethers.utils.parseEther(".95")));
 
     });
     it("minting adds liquidity to pool without changing price", async () => {
